@@ -147,3 +147,66 @@ def save_submission(submission_name, model, pipeline_name):
     sample_submission.to_csv(prediction_path, index = False)
 
     return sample_submission
+
+
+## Data Preprocess
+
+def get_full_test_set(df):
+
+    full_train = df.join(games_data.set_index('game_id'), on='game_id')
+
+    full_train['game_created_time'] = games_data.created_at.dt.time
+    #full_train['game_created_date'] = games_data.created_at.dt.date
+    full_train['game_created_day'] = games_data.created_at.dt.day_of_week
+    full_train['game_created_time'] = full_train['game_created_time'].apply(lambda x: (x.hour + x.minute/60 + x.second/3600))
+
+    bot_names = ['BetterBot', 'STEEBot', 'HastyBot']
+
+    full_train.drop(columns = 'created_at', inplace = True)
+
+    full_train['first'] = np.where(full_train['first'].isin(bot_names), 1, 0)
+
+    full_train["lexicon"] = full_train["lexicon"].apply(lambda x: "NWL20" if x == "NSWL20" else x)
+
+    turns_data = get_data('main_data', 'turns.csv')
+
+    temp = turns_data.groupby(['game_id','nickname'])['points'].agg([np.mean, np.median, np.std]).reset_index()
+    total_turns = turns_data.groupby(['game_id'])['turn_number'].max()
+
+    bot_data = turn_type.loc[turn_type['nickname'].isin(bot_names)].copy()
+    bot_data.rename(columns={'nickname':'bot_nickname', 'turn_type': 'bot_turn_type'}, inplace= True )
+
+    human_data = turn_type.loc[~turn_type['nickname'].isin(bot_names)].copy()
+
+    # Join the two dataframe
+    new_df = human_data.join(bot_data.set_index('game_id'), on='game_id')
+
+    bot_data = temp.loc[temp['nickname'].isin(bot_names)].copy()
+    bot_data.rename(columns={'nickname':'bot_nickname', 'mean': 'bot_mean', 'median': 'bot_median', 'std': 'bot_std'}, inplace= True )
+
+    human_data = temp.loc[~temp['nickname'].isin(bot_names)].copy()
+
+    # Join the two dataframe
+    temp_df = human_data.join(bot_data.set_index('game_id'), on='game_id')
+
+    full_df = pd.merge(temp_df, new_df, on=['game_id', 'nickname', 'bot_nickname'])
+
+    full_df["Player_Exchanged"] = full_df["turn_type"].apply(lambda x: 1 if "Exchange" in x else 0)
+    full_df["Player_Passed"] = full_df["turn_type"].apply(lambda x: 1 if "Pass" in x else 0)
+    full_df["Player_Six_Rule"] = full_df["turn_type"].apply(lambda x: 1 if "Six-Zero Rule" in x else 0)
+    full_df["Player_Challenged"] = full_df["turn_type"].apply(lambda x: 1 if "Challenge" in x else 0)
+
+
+    full_df["Bot_Exchanged"] = full_df["bot_turn_type"].apply(lambda x: 1 if "Exchange" in x else 0)
+    full_df["Bot_Passed"] = full_df["bot_turn_type"].apply(lambda x: 1 if "Pass" in x else 0)
+    full_df["Bot_Six_Rule"] = full_df["bot_turn_type"].apply(lambda x: 1 if "Six-Zero Rule" in x else 0)
+    full_df["Bot_Challenged"] = full_df["bot_turn_type"].apply(lambda x: 1 if "Challenge" in x else 0)
+
+    full_df.drop(columns=['turn_type', 'bot_turn_type'], inplace= True)
+
+    total_turns = turns_data.groupby(['game_id'])['turn_number'].max()
+    full_df = pd.merge(full_df, total_turns.reset_index(), on='game_id')
+
+    final_df = pd.merge(full_train, full_df, on=['game_id', 'nickname', 'bot_nickname'])
+
+    return final_df
