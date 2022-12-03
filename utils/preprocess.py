@@ -89,8 +89,8 @@ def evaluate_model(test_data,true_labels, model):
     """
         evaluate model and return the RMSE of the model
     """
-    test_X = Preprocess.transform(test_data)
-    predictions = model.predict(test_X)
+    # test_X = Preprocess.transform(test_data)
+    predictions = model.predict(test_data)
     error = abs(predictions - true_labels)
     rmse = np.sqrt(np.mean(error))
     return rmse
@@ -117,7 +117,7 @@ def load_model_or_pipeline(model_name, folder_name):
 
 
 
-def save_submission(submission_name, model, pipeline_name):
+def save_submission(submission_name, model, test_data):
     """
         save_submission requires 3 inputs: submission_name which is the name of the submission file,
         model which is the name of the model to be loaded from the models folder to make the predictions and
@@ -128,18 +128,18 @@ def save_submission(submission_name, model, pipeline_name):
 
     sample_submission = get_data('main_data', 'sample_submission.csv')
     
-    test_data = get_data('main_data', 'test.csv')
+    # test_data = get_data('main_data', 'test.csv')
 
-    AddBot = load_model_or_pipeline('Add_bot_features', 'pipeline')
-    testing_data = AddBot.transform(test_data)
-    testing_data.drop(columns = 'rating', inplace = True)
+    # AddBot = load_model_or_pipeline('Add_bot_features', 'pipeline')
+    # testing_data = AddBot.transform(test_data)
+    # testing_data.drop(columns = 'rating', inplace = True)
     
     # Data Pipeline
-    Preprocess = load_model_or_pipeline(pipeline_name, 'pipeline')
+    # Preprocess = load_model_or_pipeline(pipeline_name, 'pipeline')
     
-    scaled_testing = Preprocess.transform(testing_data)
+    # scaled_testing = Preprocess.transform(testing_data)
 
-    rating = model.predict(scaled_testing)
+    rating = model.predict(test_data)
     sample_submission['rating'] = rating
 
     file_name = submission_name + '.csv'
@@ -152,6 +152,8 @@ def save_submission(submission_name, model, pipeline_name):
 ## Data Preprocess
 
 def get_full_test_set(df):
+
+    games_data = get_data('main_data', 'games.csv')
 
     full_train = df.join(games_data.set_index('game_id'), on='game_id')
 
@@ -172,6 +174,8 @@ def get_full_test_set(df):
 
     temp = turns_data.groupby(['game_id','nickname'])['points'].agg([np.mean, np.median, np.std]).reset_index()
     total_turns = turns_data.groupby(['game_id'])['turn_number'].max()
+
+    turn_type = turns_data.groupby(['game_id','nickname'])['turn_type'].unique().reset_index()
 
     bot_data = turn_type.loc[turn_type['nickname'].isin(bot_names)].copy()
     bot_data.rename(columns={'nickname':'bot_nickname', 'turn_type': 'bot_turn_type'}, inplace= True )
