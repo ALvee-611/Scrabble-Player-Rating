@@ -214,3 +214,9 @@ def get_full_test_set(df):
     final_df = pd.merge(full_train, full_df, on=['game_id', 'nickname', 'bot_nickname'])
 
     return final_df
+
+# Drop game_id and nickname
+
+def drop_columns(df):
+  df_new = df.drop(columns=['game_id', 'nickname'])
+  return df_new
